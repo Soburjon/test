@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="uz">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>TOG Flashcards — Yodlash uchun</title>
+    <style>
+        :root{--bg:#0f172a;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--glass:rgba(255,255,255,0.03)}
+        *{box-sizing:border-box}
+        body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;background:linear-gradient(180deg,#071025 0%,#071725 100%);color:#e6eef6;margin:0;padding:20px}
+        .container{max-width:960px;margin:0 auto}
+        h1{font-size:20px;margin:0 0 8px}
+        .row{display:flex;gap:12px;flex-wrap:wrap}
+        .card{background:var(--card);padding:12px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6);}
+        input,textarea,select,button{font-family:inherit}
+        .file-drop{border:2px dashed var(--glass);padding:14px;border-radius:10px;text-align:center;color:var(--muted);cursor:pointer}
+        table{width:100%;border-collapse:collapse;margin-top:10px}
+        th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+        .btn{background:var(--accent);color:#022;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+        .muted{color:var(--muted);font-size:13px}
+        .controls{display:flex;gap:8px;align-items:center}
+        .flashcard{width:320px;height:200px;border-radius:12px;background:linear-gradient(180deg,#0b1320,#041622);display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;cursor:pointer;user-select:none;margin:20px auto;box-shadow:0 8px 30px rgba(2,6,23,0.7)}
+        .front{font-size:22px;font-weight:700}
+        .small{font-size:13px;color:var(--muted);margin-top:6px}
+        .hidden{display:none}
+        .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+        .stats{font-size:13px;color:var(--muted)}
+        .badge{background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:8px}
+        .shuffle{cursor:pointer}
+        .center{display:flex;align-items:center;justify-content:center}
+        @media(max-width:720px){.row{flex-direction:column}.flashcard{width:100%;height:180px}}
+    </style>
+    <!-- Mammoth for parsing .docx in browser -->
+    <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>TOG Flashcards — Web ilova</h1>
+        <div class="muted">So‘zlarni .txt (har qator: word|pronunciation|translation) yoki .csv (.csv ustun tartibi ham shu) yoki .docx orqali yuklash mumkin. Keyin kartochkalarni ko‘rish, aralashtirish va tekshirish mumkin.</div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+        <div class="card" style="flex:1;min-width:280px">
+            <h3>1) Fayl yuklash</h3>
+            <div id="drop" class="file-drop">Faylni bu yerga tashla yoki bosing (.txt, .csv, .docx)</div>
+            <input id="fileInput" type="file" accept=".txt,.csv,.docx" class="hidden" />
+            <div style="margin-top:8px" class="muted">Example txt qatori: <code>glass|glæs|shisha</code></div>
+            <div style="margin-top:10px" class="controls">
+                <button id="loadSample" class="btn">Namuna yukla</button>
+                <button id="clearAll" class="btn" style="background:#ef4444;color:white">Tozalash</button>
+            </div>
+        </div>
+
+        <div class="card" style="width:320px">
+            <h3>2) Kartochka sozlamalari</h3>
+            <div class="muted">Randomlashtirish / avtomatik tekshirish</div>
+            <div style="margin-top:8px" class="toolbar">
+                <label class="badge">
+                    <input id="shuffleOnLoad" type="checkbox" /> Shuffle
+                </label>
+                <label class="badge">
+                    <input id="showPron" type="checkbox" checked /> Talaffuz ko‘rsatilsin
+                </label>
+                <label class="badge">
+                    <input id="doubleSided" type="checkbox" /> Ikki tomonlama (quiz)
+                </label>
+            </div>
+            <div style="margin-top:8px" class="stats">So‘zlar: <span id="count">0</span></div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+        <h3>3) So‘zlar ro‘yxati</h3>
+        <div class="muted">Ro‘yxatni ko‘rib tahrirlash mumkin. Har bir qator: Inglizcha | Talaffuz | Tarjima</div>
+        <table id="wordsTable" style="margin-top:8px">
+            <thead><tr><th>#</th><th>Inglizcha</th><th>Talaffuz</th><th>Tarjima</th><th></th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <div style="margin-top:8px" class="controls">
+            <button id="exportTxt" class="btn">Export .txt</button>
+            <button id="startFlash" class="btn">Kartochkalarni boshlash</button>
+        </div>
+    </div>
+
+    <div id="flashArea" class="card hidden" style="margin-top:12px">
+        <h3>Flashcards</h3>
+        <div class="center">
+            <div id="card" class="flashcard">
+                <div>
+                    <div id="frontText" class="front">Word</div>
+                    <div id="pronText" class="small">/pronunciation/</div>
+                    <div id="backText" class="small" style="margin-top:12px;display:none">Tarjima</div>
+                </div>
+            </div>
+        </div>
+        <div class="center">
+            <div class="controls">
+                <button id="prevBtn" class="btn">◀ Oldingi</button>
+                <button id="flipBtn" class="btn">Aylantirish</button>
+                <button id="nextBtn" class="btn">Keyingi ▶</button>
+                <button id="shuffleBtn" class="btn">Aralashtirish</button>
+            </div>
+        </div>
+        <div class="center" style="margin-top:10px">
+            <div class="controls">
+                <button id="knowBtn" class="btn" style="background:#10b981">Bilaman</button>
+                <button id="dontKnowBtn" class="btn" style="background:#ef4444">Bilmayman</button>
+            </div>
+        </div>
+        <div style="margin-top:10px" class="stats">Progress: <span id="pos">0</span>/<span id="total">0</span> • Correct: <span id="correct">0</span></div>
+    </div>
+</div>
+
+<script>
+    // Simple TOG Flashcards app (single-file)
+    // - Supports .txt/.csv/.docx upload
+    // - Expected format per line: word|pronunciation|translation
+    // - Saves to localStorage
+
+    const fileInput = document.getElementById('fileInput');
+    const drop = document.getElementById('drop');
+    const tbody = document.querySelector('#wordsTable tbody');
+    const countEl = document.getElementById('count');
+    const startFlash = document.getElementById('startFlash');
+    const flashArea = document.getElementById('flashArea');
+    const cardEl = document.getElementById('card');
+    const frontText = document.getElementById('frontText');
+    const pronText = document.getElementById('pronText');
+    const backText = document.getElementById('backText');
+    const posEl = document.getElementById('pos');
+    const totalEl = document.getElementById('total');
+    const correctEl = document.getElementById('correct');
+    const shuffleOnLoad = document.getElementById('shuffleOnLoad');
+    const showPron = document.getElementById('showPron');
+    const doubleSided = document.getElementById('doubleSided');
+
+    let words = []; // {w,p,t}
+    let deck = [];
+    let idx = 0;
+    let correct = 0;
+    let showingBack = false;
+
+    function saveLocal(){localStorage.setItem('tog_words',JSON.stringify(words));}
+    function loadLocal(){const s=localStorage.getItem('tog_words'); if(s){words=JSON.parse(s);} else words=[]; renderTable();}
+
+    function renderTable(){tbody.innerHTML=''; words.forEach((it,i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${i+1}</td><td contenteditable data-i="${i}" data-field="w">${escapeHtml(it.w)}</td><td contenteditable data-i="${i}" data-field="p">${escapeHtml(it.p)}</td><td contenteditable data-i="${i}" data-field="t">${escapeHtml(it.t)}</td><td><button data-i="${i}" class="del">❌</button></td>`;
+        tbody.appendChild(tr);
+    }); countEl.textContent = words.length; attachTableEvents();}
+
+    function attachTableEvents(){tbody.querySelectorAll('[contenteditable]').forEach(el=>{
+        el.addEventListener('input',e=>{
+            const i=+el.dataset.i; const f=el.dataset.field; words[i][f]=el.innerText.trim(); saveLocal(); renderTable();
+        });
+    });
+        tbody.querySelectorAll('.del').forEach(btn=>btn.addEventListener('click',e=>{const i=+btn.dataset.i; words.splice(i,1); saveLocal(); renderTable();}))}
+
+    function escapeHtml(s){return s?.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')||''}
+
+    // File handling
+    drop.addEventListener('click',()=>fileInput.click());
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault();drop.style.borderColor='#38bdf8'}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault();drop.style.borderColor='';}));
+
+    drop.addEventListener('drop', async (e)=>{e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) await handleFile(f)});
+    fileInput.addEventListener('change', async ()=>{const f=fileInput.files[0]; if(f) await handleFile(f); fileInput.value='';});
+
+    async function handleFile(file){
+        const name=file.name.toLowerCase();
+        if(name.endsWith('.txt')||name.endsWith('.csv')){
+            const txt = await file.text(); parseTextContent(txt);
+        } else if(name.endsWith('.docx')){
+            // use mammoth to extract text
+            const arrayBuffer = await file.arrayBuffer();
+            mammoth.extractRawText({arrayBuffer:arrayBuffer})
+                .then(result=>{parseTextContent(result.value);})
+                .catch(err=>alert('DOCX parsing error: '+err));
+        } else {alert('Faqat .txt, .csv yoki .docx qabul qilinadi');}
+    }
+
+    function parseTextContent(txt){
+        // split lines and accept separators | or , or ; or tab
+        const lines = txt.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+        for(const line of lines){
+            // try pipe first
+            let parts = line.split('|');
+            if(parts.length<3) parts = line.split(',');
+            if(parts.length<3) parts = line.split(';');
+            if(parts.length<3) parts = line.split('\t');
+            if(parts.length===1){ // maybe "word translation" -> split by space last
+                const sp = line.split(' ');
+                const t = sp.pop(); const w = sp.join(' ');
+                words.push({w:w.trim(), p:'', t:t.trim()});
+            } else {
+                words.push({w:parts[0].trim(), p:parts[1].trim(), t:parts.slice(2).join('|').trim()});
+            }
+        }
+        saveLocal(); renderTable();
+    }
+
+    // sample
+    document.getElementById('loadSample').addEventListener('click',()=>{
+        const sample = `glass|glæs|shisha\nmeet|miːt|uchrashmoq\ncold|kəʊld|sovuq\nrun|rʌn|yugurmoq`;
+        parseTextContent(sample);
+    });
+
+    document.getElementById('clearAll').addEventListener('click',()=>{if(confirm('Haqiqatan ham tozalaysizmi?')){words=[];saveLocal();renderTable();}});
+
+    // Export
+    document.getElementById('exportTxt').addEventListener('click',()=>{
+        const txt = words.map(it=>`${it.w}|${it.p}|${it.t}`).join('\n');
+        const blob = new Blob([txt],{type:'text/plain'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='tog_words.txt'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // Flashcards
+    startFlash.addEventListener('click',()=>{
+        if(words.length===0){alert('Hech narsa yo‘q. Avval so‘zlarni yuklang.');return}
+        deck = words.map((w,i)=>({...w, i}));
+        if(shuffleOnLoad.checked) shuffle(deck);
+        idx=0;correct=0;showingBack=false; updateCard(); flashArea.classList.remove('hidden'); totalEl.textContent = deck.length; posEl.textContent = idx+1; correctEl.textContent = correct;
+    });
+
+    function updateCard(){
+        if(deck.length===0) return;
+        const cur = deck[idx];
+        frontText.textContent = cur.w;
+        pronText.textContent = showPron.checked && cur.p ? `/${cur.p}/` : '';
+        backText.textContent = cur.t || '';
+        backText.style.display = showingBack? 'block':'none';
+        pronText.style.display = showPron.checked ? 'block':'none';
+        posEl.textContent = idx+1; totalEl.textContent = deck.length; correctEl.textContent = correct;
+    }
+
+    cardEl.addEventListener('click', ()=>{ showingBack = !showingBack; updateCard(); });
+
+    document.getElementById('flipBtn').addEventListener('click', ()=>{ showingBack = !showingBack; updateCard();});
+    document.getElementById('nextBtn').addEventListener('click', ()=>{ nextCard();});
+    document.getElementById('prevBtn').addEventListener('click', ()=>{ prevCard();});
+    document.getElementById('shuffleBtn').addEventListener('click', ()=>{ shuffle(deck); idx=0; updateCard();});
+
+    document.getElementById('knowBtn').addEventListener('click', ()=>{ correct++; markAndNext(true);});
+    document.getElementById('dontKnowBtn').addEventListener('click', ()=>{ markAndNext(false);});
+
+    function markAndNext(isCorrect){ // if double-sided quiz, we can move wrong items to later
+        if(isCorrect){ /* optionally remove or move to end */ }
+        // move to next
+        nextCard();
+    }
+
+    function nextCard(){ if(deck.length===0) return; idx++; if(idx>=deck.length) idx=0; showingBack=false; updateCard(); }
+    function prevCard(){ if(deck.length===0) return; idx--; if(idx<0) idx=deck.length-1; showingBack=false; updateCard(); }
+
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} }
+
+    // keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+        if(flashArea.classList.contains('hidden')) return;
+        if(e.key===' '){ e.preventDefault(); showingBack=!showingBack; updateCard(); }
+        if(e.key==='ArrowRight') nextCard();
+        if(e.key==='ArrowLeft') prevCard();
+        if(e.key==='k') { correct++; nextCard(); }
+    });
+
+    // load saved on start
+    loadLocal();
+
+</script>
+</body>
+</html>
